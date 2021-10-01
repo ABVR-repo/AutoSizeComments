@@ -2,21 +2,23 @@
 
 #include "AutoSizeCommentsCacheFile.h"
 
+#include "AutoSizeCommentsGraphNode.h"
+#include "AutoSizeCommentsModule.h"
+#include "AutoSizeCommentsSettings.h"
+#include "AutoSizeCommentsState.h"
+#include "AutoSizeCommentsUtils.h"
+#include "EdGraphNode_Comment.h"
+#include "AssetRegistry/Public/AssetRegistryModule.h"
+#include "AssetRegistry/Public/AssetRegistryState.h"
+#include "Core/Public/HAL/PlatformFilemanager.h"
+#include "Core/Public/Misc/CoreDelegates.h"
+#include "Core/Public/Misc/FileHelper.h"
 #include "EdGraph/EdGraph.h"
 #include "EdGraph/EdGraphNode.h"
 #include "Editor/GraphEditor/Public/SGraphPanel.h"
-
-#include "Projects/Public/Interfaces/IPluginManager.h"
-#include "Core/Public/Misc/FileHelper.h"
-#include "Core/Public/HAL/PlatformFilemanager.h"
-#include "Core/Public/Misc/CoreDelegates.h"
-#include "JsonUtilities/Public/JsonObjectConverter.h"
 #include "EngineSettings/Classes/GeneralProjectSettings.h"
-#include "AssetRegistry/Public/AssetRegistryModule.h"
-#include "AssetRegistry/Public/AssetRegistryState.h"
-#include "AutoSizeCommentsGraphNode.h"
-#include "AutoSizeCommentsSettings.h"
-#include "AutoSizeCommentsModule.h"
+#include "JsonUtilities/Public/JsonObjectConverter.h"
+#include "Projects/Public/Interfaces/IPluginManager.h"
 
 void FAutoSizeCommentsCacheFile::Init()
 {
@@ -63,13 +65,16 @@ void FAutoSizeCommentsCacheFile::SaveCache()
 		return;
 	}
 
+	const double StartTime = FPlatformTime::Seconds();
+
 	const auto CachePath = GetCachePath();
 
 	// Write data to file
 	FString JsonAsString;
 	FJsonObjectConverter::UStructToJsonObjectString(PackageData, JsonAsString);
 	FFileHelper::SaveStringToFile(JsonAsString, *CachePath);
-	UE_LOG(LogAutoSizeComments, Log, TEXT("Saved node cache to %s"), *CachePath);
+	const double TimeTaken = (FPlatformTime::Seconds() - StartTime) * 1000.0f;
+	UE_LOG(LogAutoSizeComments, Log, TEXT("Saved node cache to %s took %6.2fms"), *CachePath, TimeTaken);
 }
 
 void FAutoSizeCommentsCacheFile::DeleteCache()
@@ -109,6 +114,49 @@ void FAutoSizeCommentsCacheFile::CleanupFiles()
 		if (!CurrentPackageNames.Contains(PackageGuid))
 		{
 			PackageData.PackageData.Remove(PackageGuid);
+		}
+	}
+}
+
+void FAutoSizeCommentsCacheFile::UpdateComment(UEdGraphNode_Comment* Comment)
+{
+	if (!Comment)
+	{
+		UE_LOG(LogAutoSizeComments, Warning, TEXT("Tried to update null comment"));
+		return;
+	}
+
+	if (!IAutoSizeCommentsModule::Get().GetState().HasRegisteredComment(Comment))
+	{
+		return;
+	}
+
+	UEdGraph* Graph = Comment->GetGraph();
+	if (!Graph)
+	{
+		UE_LOG(LogAutoSizeComments, Warning, TEXT("Tried to update comment with null graph"));
+		return;
+	}
+
+	FASCCommentData& GraphData = GetGraphData(Graph);
+
+	if (FASCUtils::HasNodeBeenDeleted(Comment))
+	{
+		GraphData.CommentData.Remove(Comment->NodeGuid);
+	}
+	else
+	{
+		FASCNodesInside& NodesInside = GraphData.CommentData.FindOrAdd(Comment->NodeGuid);
+		NodesInside.NodeGuids.Empty();
+
+		// update cache file
+		const TArray<UEdGraphNode*> Nodes = FASCUtils::GetNodesUnderComment(Comment);
+		for (UEdGraphNode* Node : Nodes)
+		{
+			if (!FASCUtils::HasNodeBeenDeleted(Node))
+			{
+				NodesInside.NodeGuids.Add(Node->NodeGuid);
+			}
 		}
 	}
 }
@@ -156,6 +204,33 @@ bool FAutoSizeCommentsCacheFile::GetNodesUnderComment(TSharedPtr<SAutoSizeCommen
 	}
 
 	return false;
+}
+
+void FAutoSizeCommentsCacheFile::PrintCache()
+{
+	for (auto& Package : PackageData.PackageData)
+	{
+		for (auto& GraphData : Package.Value.GraphData)
+		{
+			UE_LOG(LogAutoSizeComments, VeryVerbose, TEXT("Graph %s"), *GraphData.Key.ToString());
+			for (auto& CommentData : GraphData.Value.CommentData)
+			{
+				UE_LOG(LogAutoSizeComments, VeryVerbose, TEXT("\tComment %s"), *CommentData.Key.ToString());
+				for (auto NodeGuid : CommentData.Value.NodeGuids)
+				{
+					UE_LOG(LogAutoSizeComments, VeryVerbose, TEXT("\t\tNode %s"), *NodeGuid.ToString());
+				}
+			}
+		}
+	}
+}
+
+void FAutoSizeCommentsCacheFile::OnPreExit()
+{
+	if (GetDefault<UAutoSizeCommentsSettings>()->bSaveCommentDataOnExit)
+	{
+		SaveCache();
+	}
 }
 
 void FASCCommentData::CleanupGraph(UEdGraph* Graph)

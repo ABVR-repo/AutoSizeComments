@@ -60,11 +60,15 @@ void SAutoSizeCommentsGraphNode::Construct(const FArguments& InArgs, class UEdGr
 	OpacityValue = ASCSettings->MinimumControlOpacity;
 	CommentControlsTextColor = FLinearColor(1, 1, 1, OpacityValue);
 	CommentControlsColor = FLinearColor(CommentNode->CommentColor.R, CommentNode->CommentColor.G, CommentNode->CommentColor.B, OpacityValue);
+
+	// register to ASCModule
+	IAutoSizeCommentsModule::Get().RegisterComment(SharedThis(this));
 }
 
 SAutoSizeCommentsGraphNode::~SAutoSizeCommentsGraphNode()
 {
-	SaveToCache();
+	UpdateCache();
+	IAutoSizeCommentsModule::Get().RemoveComment(GetCommentNodeObj());
 }
 
 void SAutoSizeCommentsGraphNode::InitializeColor(const UAutoSizeCommentsSettings* ASCSettings, const bool bIsPresetStyle, const bool bIsHeaderComment)
@@ -162,6 +166,9 @@ FReply SAutoSizeCommentsGraphNode::OnMouseButtonDown(const FGeometry& MyGeometry
 		{
 			DragSize = UserSize;
 			bUserIsDragging = true;
+
+			// deselect all nodes when we are trying to resize
+			GetOwnerPanel()->SelectionManager.ClearSelectionSet();
 
 			// ResizeTransaction = MakeShareable(new FScopedTransaction(NSLOCTEXT("UnrealEd", "Resize Comment Node", "Resize Comment Node")));
 			// CommentNode->Modify();
@@ -628,6 +635,16 @@ void SAutoSizeCommentsGraphNode::SetOwner(const TSharedRef<SGraphPanel>& OwnerPa
 {
 	SGraphNode::SetOwner(OwnerPanel);
 
+	if (!CommentNode)
+	{
+		return;
+	}
+	
+	if (IsHeaderComment())
+	{
+		return;
+	}
+
 	if (CommentNode->GetNodesUnderComment().Num() > 0)
 	{
 		return;
@@ -704,6 +721,11 @@ FCursorReply SAutoSizeCommentsGraphNode::OnCursorQuery(const FGeometry& MyGeomet
 
 int32 SAutoSizeCommentsGraphNode::GetSortDepth() const
 {
+	if (!CommentNode)
+	{
+		return -1;
+	}
+
 	if (IsHeaderComment())
 	{
 		return 1;
@@ -714,7 +736,7 @@ int32 SAutoSizeCommentsGraphNode::GetSortDepth() const
 		return 0;
 	}
 
-	return CommentNode ? CommentNode->CommentDepth : -1;
+	return CommentNode->CommentDepth;
 }
 
 FReply SAutoSizeCommentsGraphNode::HandleRandomizeColorButtonClicked()
@@ -1611,29 +1633,9 @@ bool SAutoSizeCommentsGraphNode::LoadCache()
 	return false;
 }
 
-void SAutoSizeCommentsGraphNode::SaveToCache()
+void SAutoSizeCommentsGraphNode::UpdateCache()
 {
-	FASCCommentData& GraphData = IAutoSizeCommentsModule::Get().GetSizeCache().GetGraphData(CommentNode->GetGraph());
-
-	if (HasNodeBeenDeleted(CommentNode))
-	{
-		GraphData.CommentData.Remove(CommentNode->NodeGuid);
-	}
-	else
-	{
-		FASCNodesInside& NodesInside = GraphData.CommentData.FindOrAdd(CommentNode->NodeGuid);
-		NodesInside.NodeGuids.Empty();
-
-		// update cache file
-		const auto Nodes = GetEdGraphNodesUnderComment(CommentNode);
-		for (auto Node : Nodes)
-		{
-			if (!HasNodeBeenDeleted(Node))
-			{
-				NodesInside.NodeGuids.Add(Node->NodeGuid);
-			}
-		}
-	}
+	IAutoSizeCommentsModule::Get().GetSizeCache().UpdateComment(GetCommentNodeObj());
 }
 
 void SAutoSizeCommentsGraphNode::QueryNodesUnderComment(TArray<UEdGraphNode*>& OutNodesUnderComment, const ECommentCollisionMethod OverrideCollisionMethod, const bool bIgnoreKnots)

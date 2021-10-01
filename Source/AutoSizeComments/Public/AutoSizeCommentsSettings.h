@@ -18,6 +18,14 @@ enum class ECommentCollisionMethod : uint8
 	Disabled UMETA(DisplayName = "Disabled"),
 };
 
+UENUM()
+enum class EASCAutoInsertComment : uint8
+{
+	Never UMETA(DisplayName = "Never"),
+	Always UMETA(DisplayName = "Always"),
+	Surrounded UMETA(DisplayName = "Surrounded"),
+};
+
 USTRUCT()
 struct FPresetCommentStyle
 {
@@ -82,6 +90,10 @@ public:
 	UPROPERTY(EditAnywhere, config, Category = Styles)
 	TArray<FPresetCommentStyle> PresetStyles;
 
+	/** Determines when to insert newly created nodes into existing comments */
+	UPROPERTY(EditAnywhere, config, Category = Misc)
+	EASCAutoInsertComment AutoInsertComment;
+
 	/** Disable the auto resizing behavior for comments */
 	UPROPERTY(EditAnywhere, config, Category = Misc)
 	bool bDisableResizing;
@@ -125,6 +137,14 @@ public:
 	/** If enabled, nodes inside comments will be saved to a cache file */
 	UPROPERTY(EditAnywhere, config, Category = Misc)
 	bool bSaveCommentNodeDataToFile;
+
+	/** If enabled, nodes will be saved to file when the graph is saved */
+	UPROPERTY(EditAnywhere, config, Category = Misc, meta = (EditCondition = "bSaveCommentNodeDataToFile"))
+	bool bSaveCommentDataOnSavingGraph;
+
+	/** If enabled, nodes will be saved to file when the program is exited */
+	UPROPERTY(EditAnywhere, config, Category = Misc, meta = (EditCondition = "bSaveCommentNodeDataToFile"))
+	bool bSaveCommentDataOnExit;
 
 	/** Commments will detect and add nodes are underneath on creation */
 	UPROPERTY(EditAnywhere, config, Category = Misc)

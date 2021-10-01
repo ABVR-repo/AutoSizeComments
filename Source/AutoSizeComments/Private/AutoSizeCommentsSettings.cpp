@@ -5,6 +5,7 @@
 UAutoSizeCommentsSettings::UAutoSizeCommentsSettings(const FObjectInitializer& ObjectInitializer) :
 	Super(ObjectInitializer)
 {
+	AutoInsertComment = EASCAutoInsertComment::Always;
 	bDisableResizing = false;
 	CommentNodePadding = FVector2D(30, 30);
 	MinimumVerticalPadding = 24.0f;
@@ -32,6 +33,8 @@ UAutoSizeCommentsSettings::UAutoSizeCommentsSettings(const FObjectInitializer& O
 	bGlobalColorBubble = false;
 	bGlobalShowBubbleWhenZoomed = true;
 	bSaveCommentNodeDataToFile = true;
+	bSaveCommentDataOnSavingGraph = true;
+	bSaveCommentDataOnExit = true;
 	bDetectNodesContainedForNewComments = true;
 	ResizeChord = FInputChord(EKeys::LeftMouseButton, EModifierKey::Shift);
 	ResizeCollisionMethod = ECommentCollisionMethod::Contained;
