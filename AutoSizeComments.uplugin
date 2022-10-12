@@ -1,7 +1,7 @@
 {
   "FileVersion": 3,
   "Version": 1,
-  "VersionName": "3.0.1",
+  "VersionName": "3.0.6",
   "FriendlyName": "AutoSizeComments",
   "Description": "Comment boxes that auto resize to fit the nodes inside",
   "Category": "Editor",
@@ -18,7 +18,7 @@
   "Modules": [
     {
       "Name": "AutoSizeComments",
-      "Type": "Editor",
+      "Type": "EditorNoCommandlet",
       "LoadingPhase": "Default",
       "WhitelistPlatforms": [
         "Win64",

@@ -50,6 +50,9 @@ struct AUTOSIZECOMMENTS_API FASCPackageData
 class AUTOSIZECOMMENTS_API FAutoSizeCommentsCacheFile
 {
 public:
+	static FAutoSizeCommentsCacheFile& Get();
+	static void TearDown();
+
 	FAutoSizeCommentsCacheFile() = default;
 
 	FASCPackageData& GetPackageData() { return PackageData; }
@@ -75,6 +78,8 @@ public:
 	void PrintCache();
 
 private:
+	bool bHasLoaded = false;
+
 	FASCPackageData PackageData;
 
 	void OnPreExit();

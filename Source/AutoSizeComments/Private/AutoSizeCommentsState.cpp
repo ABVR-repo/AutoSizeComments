@@ -2,6 +2,17 @@
 
 #include "AutoSizeCommentsGraphNode.h"
 #include "EdGraphNode_Comment.h"
+#include "Misc/LazySingleton.h"
+
+FASCState& FASCState::Get()
+{
+	return TLazySingleton<FASCState>::Get();
+}
+
+void FASCState::TearDown()
+{
+	TLazySingleton<FASCState>::TearDown();
+}
 
 void FASCState::RegisterComment(TSharedPtr<SAutoSizeCommentsGraphNode> ASCComment)
 {
@@ -9,12 +20,12 @@ void FASCState::RegisterComment(TSharedPtr<SAutoSizeCommentsGraphNode> ASCCommen
 	CommentToASCMapping.Add(Comment->NodeGuid, ASCComment);
 }
 
-void FASCState::RemoveComment(UEdGraphNode_Comment* Comment)
+void FASCState::RemoveComment(const UEdGraphNode_Comment* Comment)
 {
 	CommentToASCMapping.Remove(Comment->NodeGuid);
 }
-
-TSharedPtr<SAutoSizeCommentsGraphNode> FASCState::GetASCComment(UEdGraphNode_Comment* Comment)
+	
+TSharedPtr<SAutoSizeCommentsGraphNode> FASCState::GetASCComment(const UEdGraphNode_Comment* Comment)
 {
 	TWeakPtr<SAutoSizeCommentsGraphNode> WeakPtr = CommentToASCMapping.FindRef(Comment->NodeGuid);
 	return WeakPtr.Pin();

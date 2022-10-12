@@ -18,15 +18,23 @@
 #include "Editor/GraphEditor/Public/SGraphPanel.h"
 #include "EngineSettings/Classes/GeneralProjectSettings.h"
 #include "JsonUtilities/Public/JsonObjectConverter.h"
+#include "Misc/LazySingleton.h"
 #include "Projects/Public/Interfaces/IPluginManager.h"
+
+FAutoSizeCommentsCacheFile& FAutoSizeCommentsCacheFile::Get()
+{
+	return TLazySingleton<FAutoSizeCommentsCacheFile>::Get();
+}
+
+void FAutoSizeCommentsCacheFile::TearDown()
+{
+	TLazySingleton<FAutoSizeCommentsCacheFile>::TearDown();
+}
 
 void FAutoSizeCommentsCacheFile::Init()
 {
 	IAssetRegistry& AssetRegistry = FModuleManager::LoadModuleChecked<FAssetRegistryModule>("AssetRegistry").Get();
-	AssetRegistry.OnFilesLoaded().AddLambda([&]()
-	{
-		LoadCache();
-	});
+	AssetRegistry.OnFilesLoaded().AddRaw(this, &FAutoSizeCommentsCacheFile::LoadCache);
 
 	FCoreDelegates::OnPreExit.AddRaw(this, &FAutoSizeCommentsCacheFile::SaveCache);
 }
@@ -37,6 +45,13 @@ void FAutoSizeCommentsCacheFile::LoadCache()
 	{
 		return;
 	}
+
+	if (bHasLoaded)
+	{
+		return;
+	}
+
+	bHasLoaded = true;
 
 	const auto CachePath = GetCachePath();
 
@@ -56,6 +71,9 @@ void FAutoSizeCommentsCacheFile::LoadCache()
 	}
 
 	CleanupFiles();
+
+	IAssetRegistry& AssetRegistry = FModuleManager::LoadModuleChecked<FAssetRegistryModule>("AssetRegistry").Get();
+	AssetRegistry.OnFilesLoaded().RemoveAll(this);
 }
 
 void FAutoSizeCommentsCacheFile::SaveCache()
@@ -99,12 +117,23 @@ void FAutoSizeCommentsCacheFile::CleanupFiles()
 
 	// Get package guids from assets
 	TSet<FName> CurrentPackageNames;
+
+#if ASC_UE_VERSION_OR_LATER(5, 0)
+	TArray<FAssetData> Assets;
+	FARFilter Filter;
+	AssetRegistry.GetAllAssets(Assets, true);
+	for (FAssetData& Asset : Assets)
+	{
+		CurrentPackageNames.Add(Asset.PackageName);
+	}
+#else
 	const auto& AssetDataMap = AssetRegistry.GetAssetRegistryState()->GetObjectPathToAssetDataMap();
 	for (const TPair<FName, const FAssetData*>& AssetDataPair : AssetDataMap)
 	{
 		const FAssetData* AssetData = AssetDataPair.Value;
 		CurrentPackageNames.Add(AssetData->PackageName);
 	}
+#endif
 
 	// Remove missing files
 	TArray<FName> OldPackageGuids;
@@ -126,7 +155,7 @@ void FAutoSizeCommentsCacheFile::UpdateComment(UEdGraphNode_Comment* Comment)
 		return;
 	}
 
-	if (!IAutoSizeCommentsModule::Get().GetState().HasRegisteredComment(Comment))
+	if (!FASCState::Get().HasRegisteredComment(Comment))
 	{
 		return;
 	}

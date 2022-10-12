@@ -5,13 +5,16 @@ class SAutoSizeCommentsGraphNode;
 
 struct FASCState
 {
+	static FASCState& Get();
+	static void TearDown();
+
 	FASCState() = default;
 
 	TMap<FGuid, TWeakPtr<SAutoSizeCommentsGraphNode>> CommentToASCMapping;
 
 	void RegisterComment(TSharedPtr<SAutoSizeCommentsGraphNode> ASCComment);
-	void RemoveComment(UEdGraphNode_Comment* Comment);
+	void RemoveComment(const UEdGraphNode_Comment* Comment);
 
-	TSharedPtr<SAutoSizeCommentsGraphNode> GetASCComment(UEdGraphNode_Comment* Comment);
+	TSharedPtr<SAutoSizeCommentsGraphNode> GetASCComment(const UEdGraphNode_Comment* Comment);
 	bool HasRegisteredComment(UEdGraphNode_Comment* Comment);
 };

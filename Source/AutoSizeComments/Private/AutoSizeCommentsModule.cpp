@@ -6,6 +6,7 @@
 #include "AutoSizeCommentsGraphHandler.h"
 #include "AutoSizeCommentsGraphNode.h"
 #include "AutoSizeCommentsGraphPanelNodeFactory.h"
+#include "AutoSizeCommentsInputProcessor.h"
 #include "AutoSizeCommentsSettings.h"
 #include "AutoSizeCommentsState.h"
 #include "ISettingsModule.h"
@@ -18,41 +19,6 @@
 
 DEFINE_LOG_CATEGORY(LogAutoSizeComments)
 
-class FAutoSizeCommentsModule final : public IAutoSizeCommentsModule
-{
-public:
-	/** IModuleInterface implementation */
-	virtual void StartupModule() override;
-
-	virtual void ShutdownModule() override;
-
-	virtual FAutoSizeCommentsCacheFile& GetSizeCache() override { return Cache; }
-
-	virtual FASCState& GetState() override { return State; }
-
-	virtual void RegisterComment(TSharedPtr<SAutoSizeCommentsGraphNode> ASCComment) override;
-	virtual void RemoveComment(UEdGraphNode_Comment* Comment) override;
-
-private:
-	TSharedPtr<FAutoSizeCommentsGraphPanelNodeFactory> ASCNodeFactory;
-
-	TWeakPtr<SNotificationItem> SuggestedSettingsNotification;
-
-	FAutoSizeCommentsCacheFile Cache;
-
-	FASCState State;
-
-	FAutoSizeCommentGraphHandler GraphHandler;
-
-	void OnPostEngineInit();
-
-	void SuggestBlueprintAssistSettings();
-
-	void OnCancelSuggestion();
-
-	void OnApplySuggestion();
-};
-
 void FAutoSizeCommentsModule::StartupModule()
 {
 #if ASC_ENABLED
@@ -64,7 +30,7 @@ void FAutoSizeCommentsModule::OnPostEngineInit()
 {
 	UE_LOG(LogAutoSizeComments, Log, TEXT("Startup AutoSizeComments"));
 
-	Cache.Init();
+	FAutoSizeCommentsCacheFile::Get().Init();
 
 	// Register the graph node factory
 	ASCNodeFactory = MakeShareable(new FAutoSizeCommentsGraphPanelNodeFactory());
@@ -83,7 +49,9 @@ void FAutoSizeCommentsModule::OnPostEngineInit()
 
 	FCoreDelegates::OnPostEngineInit.AddRaw(this, &FAutoSizeCommentsModule::SuggestBlueprintAssistSettings);
 
-	GraphHandler.BindDelegates();
+	FAutoSizeCommentGraphHandler::Get().BindDelegates();
+
+	FAutoSizeCommentsInputProcessor::Create();
 }
 
 void FAutoSizeCommentsModule::ShutdownModule()
@@ -114,19 +82,10 @@ void FAutoSizeCommentsModule::ShutdownModule()
 
 	FCoreDelegates::OnPostEngineInit.RemoveAll(this);
 
-	GraphHandler.UnbindDelegates();
+	FAutoSizeCommentGraphHandler::Get().UnbindDelegates();
+
+	FAutoSizeCommentsInputProcessor::Cleanup();
 #endif
-}
-
-void FAutoSizeCommentsModule::RegisterComment(TSharedPtr<SAutoSizeCommentsGraphNode> ASCComment)
-{
-	State.RegisterComment(ASCComment);
-	GraphHandler.BindToGraph(ASCComment->GetNodeObj()->GetGraph());
-}
-
-void FAutoSizeCommentsModule::RemoveComment(UEdGraphNode_Comment* Comment)
-{
-	State.RemoveComment(Comment);
 }
 
 void FAutoSizeCommentsModule::SuggestBlueprintAssistSettings()
